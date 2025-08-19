@@ -4,7 +4,6 @@ from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from typing import List, Dict
-import json 
 
 # 1. Khai báo thông tin kết nối từ database của bạn
 DB_HOST = "sql12.freesqldatabase.com"
@@ -91,12 +90,25 @@ def get_all_utilities(db: Session = Depends(get_db)):
     if not utilities:
         raise HTTPException(status_code=404, detail="Không có tiện ích nào được tìm thấy.")
     
+    processed_utilities = []
+    
     for utility in utilities:
         if utility.images:
-            utility.images = json.loads(utility.images)
+            images_list = [url.strip() for url in utility.images.splitlines() if url.strip()]
         else:
-            utility.images = []
-    return utilities
+            images_list = []
+        
+        processed_utilities.append({
+            "id": utility.id,
+            "type": utility.type,
+            "images": images_list,
+            "title": utility.title,
+            "description": utility.description,
+            "vr360_url": utility.vr360_url,
+            "video_url": utility.video_url
+        })
+        
+    return processed_utilities
 
 # 12. Các endpoint MỚI cho bảng 'service'
 @app.get("/services/")
