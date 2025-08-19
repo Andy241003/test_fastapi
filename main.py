@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from typing import List, Dict
+import json 
 
 # 1. Khai báo thông tin kết nối từ database của bạn
 DB_HOST = "sql12.freesqldatabase.com"
@@ -84,12 +85,18 @@ def get_all_utilities(db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Không có tiện ích nào được tìm thấy.")
     return utilities
 
-@app.get("/utilities/{utility_id}")
-def get_utility_by_id(utility_id: int, db: Session = Depends(get_db)):
-    utility = db.query(Utility).filter(Utility.id == utility_id).first()
-    if not utility:
-        raise HTTPException(status_code=404, detail="Không tìm thấy tiện ích.")
-    return utility
+@app.get("/utilities/")
+def get_all_utilities(db: Session = Depends(get_db)):
+    utilities = db.query(Utility).all()
+    if not utilities:
+        raise HTTPException(status_code=404, detail="Không có tiện ích nào được tìm thấy.")
+    
+    for utility in utilities:
+        if utility.images:
+            utility.images = json.loads(utility.images)
+        else:
+            utility.images = []
+    return utilities
 
 # 12. Các endpoint MỚI cho bảng 'service'
 @app.get("/services/")
