@@ -1,9 +1,14 @@
+# main.py
+
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy import create_engine, Column, Integer, String, Text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from typing import List, Dict
+
+# Import router mới từ file zalo.py
+from routers import zalo 
 
 # 1. Khai báo thông tin kết nối từ database của bạn
 DB_HOST = "sql12.freesqldatabase.com"
@@ -134,3 +139,6 @@ def get_service_by_id(service_id: int, db: Session = Depends(get_db)):
 @app.get("/")
 def home():
     return {"message": "Server FastAPI đang hoạt động!"}
+
+# Gắn APIRouter của Zalo vào ứng dụng chính với prefix "/api"
+app.include_router(zalo.router, prefix="/api", tags=["Zalo"])
