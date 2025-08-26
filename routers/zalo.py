@@ -5,9 +5,9 @@ from pydantic import BaseModel
 import requests
 import os
 
-# Lấy giá trị từ biến môi trường
-ZALO_APP_ID = os.environ.get("2618822866924995266")
-ZALO_APP_SECRET = os.environ.get("cMl8B77MQ97Fd31fXBMJ")
+# Lấy giá trị từ biến môi trường bằng cách sử dụng TÊN BIẾN
+ZALO_APP_ID = os.environ.get("ZALO_APP_ID")
+ZALO_APP_SECRET = os.environ.get("ZALO_APP_SECRET")
 
 # Tạo một APIRouter để quản lý các endpoint liên quan đến Zalo
 router = APIRouter()
