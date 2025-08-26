@@ -31,7 +31,7 @@ def get_phone_number_from_token(request_data: ZaloPhoneRequest):
     try:
         # Gửi yêu cầu đến Zalo API để đổi token lấy số điện thoại
         response = requests.get(
-            "https://graph.zalo.me/v2.0/oa/phone_numbers",
+            "https://graph.zalo.me/v2.0/oa/getphonenumber",
             params={
                 "access_token": request_data.access_token,
                 "code": request_data.token,
