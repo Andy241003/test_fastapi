@@ -37,6 +37,12 @@ def create_booking(booking: BookingCreate):
     try:
         url = f"{WP_API_URL}/bookings"
         payload = booking.dict(exclude_none=True)
+
+        # ⚡ Ghép lại guest_name = "last_name first_name"
+        full_name = f"{booking.customer.last_name} {booking.customer.first_name}"
+        for ra in payload["reserved_accommodations"]:
+            ra["guest_name"] = full_name
+
         print(f"Payload gửi tới WordPress: {payload}")
 
         response = requests.post(
@@ -51,6 +57,7 @@ def create_booking(booking: BookingCreate):
         return response.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/", summary="Get list of bookings")
