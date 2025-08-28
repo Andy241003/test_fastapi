@@ -38,8 +38,15 @@ def create_booking(booking: BookingCreate):
         url = f"{WP_API_URL}/bookings"
         payload = booking.dict(exclude_none=True)
 
-        # ⚡ Ghép lại guest_name = "last_name first_name"
-        full_name = f"{booking.customer.last_name} {booking.customer.first_name}"
+        # ⚡ Đảo ngược tên: first_name ⇄ last_name
+        swapped_first = booking.customer.last_name
+        swapped_last = booking.customer.first_name
+
+        payload["customer"]["first_name"] = swapped_first
+        payload["customer"]["last_name"] = swapped_last
+
+        # ⚡ Ghép guest_name = "last_name first_name" (sau khi đã đảo)
+        full_name = f"{swapped_last} {swapped_first}"
         for ra in payload["reserved_accommodations"]:
             ra["guest_name"] = full_name
 
