@@ -1,5 +1,5 @@
 # booking.py
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 import requests, os
 from pydantic import BaseModel
 from typing import List, Optional
@@ -46,6 +46,32 @@ def create_booking(booking: BookingCreate):
             timeout=20
         )
         if response.status_code not in (200, 201):
+            print(f"Lỗi WP API {response.status_code}: {response.text}")
+            raise HTTPException(status_code=response.status_code, detail=response.json())
+        return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/", summary="Get list of bookings")
+def get_bookings(
+    status: Optional[str] = Query(None, description="Filter by booking status"),
+    page: int = Query(1, description="Page number"),
+    per_page: int = Query(10, description="Items per page")
+):
+    try:
+        url = f"{WP_API_URL}/bookings"
+        params = {"page": page, "per_page": per_page}
+        if status:
+            params["status"] = status
+
+        response = requests.get(
+            url,
+            params=params,
+            auth=(WP_CONSUMER_KEY, WP_CONSUMER_SECRET),
+            timeout=20
+        )
+        if response.status_code != 200:
             print(f"Lỗi WP API {response.status_code}: {response.text}")
             raise HTTPException(status_code=response.status_code, detail=response.json())
         return response.json()
