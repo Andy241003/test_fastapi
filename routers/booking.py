@@ -1,0 +1,53 @@
+# booking.py
+from fastapi import APIRouter, HTTPException
+import requests, os
+from pydantic import BaseModel
+from typing import List, Optional
+
+router = APIRouter(prefix="/bookings", tags=["bookings"])
+
+WP_API_URL = os.getenv("WP_API_URL", "https://staytour.vtlink.link/wp-json/mphb/v1")
+WP_CONSUMER_KEY = os.getenv("WP_CONSUMER_KEY", "ck_972eead1eeee1b8340185d63929a96058fa42757")
+WP_CONSUMER_SECRET = os.getenv("WP_CONSUMER_SECRET", "cs_eb8b8e24af51ddd8e7fa793f9bf7279cff33c8bb")
+
+# ---------- SCHEMAS ----------
+class ReservedAccommodation(BaseModel):
+    accommodation: int
+    accommodation_type: int
+    adults: int
+    children: Optional[int] = 0
+    guest_name: Optional[str] = None
+
+class Customer(BaseModel):
+    first_name: str
+    last_name: str
+    email: str
+
+class BookingCreate(BaseModel):
+    status: Optional[str] = "pending"
+    check_in_date: str
+    check_out_date: str
+    reserved_accommodations: List[ReservedAccommodation]
+    customer: Customer
+    notes: Optional[str] = None
+
+# ---------- ROUTES ----------
+@router.post("/", summary="Create new booking")
+def create_booking(booking: BookingCreate):
+    try:
+        url = f"{WP_API_URL}/bookings"
+        payload = booking.dict(exclude_none=True)
+        print(f"Payload gửi tới WordPress: {payload}")
+
+        response = requests.post(
+            url,
+            json=payload,
+            auth=(WP_CONSUMER_KEY, WP_CONSUMER_SECRET),
+            timeout=20
+        )
+        if response.status_code not in (200, 201):
+            print(f"Lỗi WP API {response.status_code}: {response.text}")
+            raise HTTPException(status_code=response.status_code, detail=response.json())
+        return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
