@@ -1,4 +1,3 @@
-# booking.py
 from fastapi import APIRouter, HTTPException, Query
 import requests, os
 from pydantic import BaseModel
@@ -66,7 +65,6 @@ def create_booking(booking: BookingCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/", summary="Get list of bookings")
 def get_bookings(
     status: Optional[str] = Query(None, description="Filter by booking status"),
@@ -90,4 +88,44 @@ def get_bookings(
             raise HTTPException(status_code=response.status_code, detail=response.json())
         return response.json()
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/accommodation_types/", summary="Get list of accommodation types with selected details")
+def get_accommodation_types():
+    """
+    Lấy danh sách các loại phòng (accommodation types) từ WordPress API,
+    chỉ bao gồm id, title, adults, và children.
+    """
+    try:
+        url = f"{WP_API_URL}/accommodation_types"
+        
+        # Gửi yêu cầu GET tới API WordPress với xác thực
+        response = requests.get(
+            url,
+            auth=(WP_CONSUMER_KEY, WP_CONSUMER_SECRET),
+            timeout=20
+        )
+
+        # Xử lý lỗi nếu API không trả về 200 OK
+        if response.status_code != 200:
+            print(f"Lỗi WP API {response.status_code}: {response.text}")
+            raise HTTPException(status_code=response.status_code, detail=response.json())
+        
+        # Lấy dữ liệu JSON từ phản hồi
+        raw_data = response.json()
+
+        # Lọc dữ liệu để chỉ giữ lại các trường mong muốn
+        filtered_data = []
+        for item in raw_data:
+            filtered_data.append({
+                "id": item.get("id"),
+                "title": item.get("title"),
+                "adults": item.get("adults", 0),
+                "children": item.get("children", 0)
+            })
+
+        return filtered_data
+    except Exception as e:
+        # Xử lý các lỗi khác như lỗi kết nối, lỗi phân tích cú pháp JSON, ...
         raise HTTPException(status_code=500, detail=str(e))
