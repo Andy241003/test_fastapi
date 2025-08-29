@@ -9,6 +9,19 @@ WP_API_URL = os.getenv("WP_API_URL", "https://staytour.vtlink.link/wp-json/mphb/
 WP_CONSUMER_KEY = os.getenv("WP_CONSUMER_KEY", "ck_972eead1eeee1b8340185d63929a96058fa42757")
 WP_CONSUMER_SECRET = os.getenv("WP_CONSUMER_SECRET", "cs_eb8b8e24af51ddd8e7fa793f9bf7279cff33c8bb")
 
+# Ánh xạ tên phòng tới ID để dễ sử dụng
+ROOM_TYPES_MAP = {
+    "Economy Classic Room": 1943,
+    "Triple Classic Room": 1189,
+    "Business Class Room": 1190,
+    "Royal Class Room": 1191,
+    "Superior Ocean Room": 1192,
+    "Classic Room": 1015,
+    "Double Room": 1006,
+    "Standard Room": 986,
+    "Deluxe room": 3632
+}
+
 # ---------- SCHEMAS ----------
 class ReservedAccommodation(BaseModel):
     accommodation: int
@@ -100,22 +113,18 @@ def get_accommodation_types():
     try:
         url = f"{WP_API_URL}/accommodation_types"
         
-        # Gửi yêu cầu GET tới API WordPress với xác thực
         response = requests.get(
             url,
             auth=(WP_CONSUMER_KEY, WP_CONSUMER_SECRET),
             timeout=20
         )
 
-        # Xử lý lỗi nếu API không trả về 200 OK
         if response.status_code != 200:
             print(f"Lỗi WP API {response.status_code}: {response.text}")
             raise HTTPException(status_code=response.status_code, detail=response.json())
         
-        # Lấy dữ liệu JSON từ phản hồi
         raw_data = response.json()
 
-        # Lọc dữ liệu để chỉ giữ lại các trường mong muốn
         filtered_data = []
         for item in raw_data:
             filtered_data.append({
@@ -127,5 +136,49 @@ def get_accommodation_types():
 
         return filtered_data
     except Exception as e:
-        # Xử lý các lỗi khác như lỗi kết nối, lỗi phân tích cú pháp JSON, ...
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/availability/", summary="Check room availability from WordPress API")
+def get_room_availability(
+    check_in_date: str = Query(..., description="Date of check-in in YYYY-MM-DD format"),
+    check_out_date: str = Query(..., description="Date of check-out in YYYY-MM-DD format"),
+    accommodation_title: str = Query(..., description="Title of the accommodation type"),
+    adults: int = Query(1, description="Number of adults"),
+    children: Optional[int] = Query(0, description="Number of children")
+):
+    """
+    Lấy thông tin phòng trống từ WordPress API dựa trên ngày và tên loại phòng đã chọn.
+    """
+    try:
+        # Lấy ID từ tên phòng
+        accommodation_type = ROOM_TYPES_MAP.get(accommodation_title)
+        if accommodation_type is None:
+            raise HTTPException(status_code=400, detail=f"Không tìm thấy loại phòng '{accommodation_title}'")
+
+        # Xây dựng URL với các tham số từ query
+        url = (
+            f"{WP_API_URL}/bookings/availability/"
+            f"?check_in_date={check_in_date}"
+            f"&check_out_date={check_out_date}"
+            f"&accommodation_type={accommodation_type}"
+            f"&adults={adults}"
+            f"&children={children}"
+        )
+
+        # Gửi yêu cầu GET tới API WordPress
+        response = requests.get(
+            url,
+            auth=(WP_CONSUMER_KEY, WP_CONSUMER_SECRET),
+            timeout=20
+        )
+
+        # Xử lý lỗi nếu có
+        if response.status_code != 200:
+            print(f"Lỗi WP API {response.status_code}: {response.text}")
+            raise HTTPException(status_code=response.status_code, detail=response.json())
+
+        # Trả về toàn bộ dữ liệu JSON từ API
+        return response.json()
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
