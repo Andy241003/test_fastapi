@@ -1,10 +1,17 @@
-from fastapi import APIRouter, HTTPException, Query
-import requests, os
+from fastapi import FastAPI, APIRouter, HTTPException, Query
+import requests
+import os
 from pydantic import BaseModel
 from typing import List, Optional
 
+# Khởi tạo ứng dụng FastAPI
+app = FastAPI(title="Booking API Proxy")
+
+# Định nghĩa router cho các endpoint đặt phòng
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
+# Lấy các biến môi trường hoặc sử dụng giá trị mặc định
+# Trong môi trường sản xuất, bạn nên cấu hình các biến này
 WP_API_URL = os.getenv("WP_API_URL", "https://staytour.vtlink.link/wp-json/mphb/v1")
 WP_CONSUMER_KEY = os.getenv("WP_CONSUMER_KEY", "ck_972eead1eeee1b8340185d63929a96058fa42757")
 WP_CONSUMER_SECRET = os.getenv("WP_CONSUMER_SECRET", "cs_eb8b8e24af51ddd8e7fa793f9bf7279cff33c8bb")
@@ -22,7 +29,7 @@ ROOM_TYPES_MAP = {
     "Deluxe room": 3632
 }
 
-# ---------- SCHEMAS ----------
+# --- SCHEMAS (Định nghĩa cấu trúc dữ liệu cho request và response) ---
 class ReservedAccommodation(BaseModel):
     accommodation: int
     accommodation_type: int
@@ -43,21 +50,26 @@ class BookingCreate(BaseModel):
     customer: Customer
     notes: Optional[str] = None
 
-# ---------- ROUTES ----------
-@router.post("/", summary="Create new booking")
+# --- ENDPOINTS (Đóng vai trò là proxy cho API WordPress) ---
+@router.post("/", summary="Tạo đơn đặt phòng mới trên WordPress")
 def create_booking(booking: BookingCreate):
+    """
+    Endpoint này nhận dữ liệu đặt phòng từ frontend và chuyển tiếp đến API WordPress.
+    - Đảo ngược `first_name` và `last_name` của khách hàng.
+    - Ghép thành `guest_name` cho mỗi phòng được đặt.
+    """
     try:
         url = f"{WP_API_URL}/bookings"
         payload = booking.dict(exclude_none=True)
 
-        # ⚡ Đảo ngược tên: first_name ⇄ last_name
+        # Đảo ngược tên
         swapped_first = booking.customer.last_name
         swapped_last = booking.customer.first_name
 
         payload["customer"]["first_name"] = swapped_first
         payload["customer"]["last_name"] = swapped_last
 
-        # ⚡ Ghép guest_name = "last_name first_name" (sau khi đã đảo)
+        # Cập nhật guest_name cho mỗi phòng
         full_name = f"{swapped_last} {swapped_first}"
         for ra in payload["reserved_accommodations"]:
             ra["guest_name"] = full_name
@@ -77,13 +89,15 @@ def create_booking(booking: BookingCreate):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/", summary="Get list of bookings")
+@router.get("/", summary="Lấy danh sách các đơn đặt phòng từ WordPress")
 def get_bookings(
-    status: Optional[str] = Query(None, description="Filter by booking status"),
-    page: int = Query(1, description="Page number"),
-    per_page: int = Query(10, description="Items per page")
+    status: Optional[str] = Query(None, description="Lọc theo trạng thái đặt phòng"),
+    page: int = Query(1, description="Số trang"),
+    per_page: int = Query(10, description="Số mục trên mỗi trang")
 ):
+    """
+    Lấy danh sách các đơn đặt phòng với các tham số phân trang và lọc trạng thái.
+    """
     try:
         url = f"{WP_API_URL}/bookings"
         params = {"page": page, "per_page": per_page}
@@ -103,8 +117,7 @@ def get_bookings(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@router.get("/accommodation_types/", summary="Get list of accommodation types with selected details")
+@router.get("/accommodation_types/", summary="Lấy danh sách các loại phòng")
 def get_accommodation_types():
     """
     Lấy danh sách các loại phòng (accommodation types) từ WordPress API,
@@ -138,14 +151,35 @@ def get_accommodation_types():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/accommodations/", summary="Lấy danh sách các phòng nghỉ riêng lẻ")
+def get_accommodations():
+    """
+    Endpoint mới để lấy danh sách tất cả các phòng nghỉ riêng lẻ từ API WordPress.
+    """
+    try:
+        url = f"{WP_API_URL}/accommodations"
+        
+        response = requests.get(
+            url,
+            auth=(WP_CONSUMER_KEY, WP_CONSUMER_SECRET),
+            timeout=20
+        )
 
-@router.get("/availability/", summary="Check room availability from WordPress API")
+        if response.status_code != 200:
+            print(f"Lỗi WP API {response.status_code}: {response.text}")
+            raise HTTPException(status_code=response.status_code, detail=response.json())
+
+        return response.json()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/availability/", summary="Kiểm tra phòng trống")
 def get_room_availability(
-    check_in_date: str = Query(..., description="Date of check-in in YYYY-MM-DD format"),
-    check_out_date: str = Query(..., description="Date of check-out in YYYY-MM-DD format"),
-    accommodation_title: str = Query(..., description="Title of the accommodation type"),
-    adults: int = Query(1, description="Number of adults"),
-    children: Optional[int] = Query(0, description="Number of children")
+    check_in_date: str = Query(..., description="Ngày nhận phòng (YYYY-MM-DD)"),
+    check_out_date: str = Query(..., description="Ngày trả phòng (YYYY-MM-DD)"),
+    accommodation_title: str = Query(..., description="Tiêu đề loại phòng"),
+    adults: int = Query(1, description="Số người lớn"),
+    children: Optional[int] = Query(0, description="Số trẻ em")
 ):
     """
     Lấy thông tin phòng trống từ WordPress API dựa trên ngày và tên loại phòng đã chọn.
@@ -182,3 +216,11 @@ def get_room_availability(
         return response.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# Thêm router vào ứng dụng chính
+app.include_router(router)
+
+# Endpoint gốc để kiểm tra tình trạng hoạt động của backend
+@app.get("/")
+def read_root():
+    return {"message": "Backend trung gian đang hoạt động!"}
