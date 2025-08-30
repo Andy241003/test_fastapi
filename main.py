@@ -7,7 +7,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.declarative import declarative_base
 from typing import List, Dict
  
-from routers import zalo, booking
+from routers import zalo, booking, accommodation
 
 # 1. Khai báo thông tin kết nối từ database của bạn
 DB_HOST = "sql12.freesqldatabase.com"
@@ -67,7 +67,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -142,3 +142,4 @@ def home():
 
 app.include_router(zalo.router, prefix="/api", tags=["Zalo"])
 app.include_router(booking.router, prefix="/api")
+app.include_router(accommodation.router, prefix="/api")

@@ -1,33 +1,14 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 import requests
-import os
+
 from pydantic import BaseModel
 from typing import List, Optional
 
-# Khởi tạo ứng dụng FastAPI
-app = FastAPI(title="Booking API Proxy")
+# Import các biến cấu hình từ file config.py
+from .config import WP_API_URL, WP_CONSUMER_KEY, WP_CONSUMER_SECRET, ROOM_TYPES_MAP
 
 # Định nghĩa router cho các endpoint đặt phòng
 router = APIRouter(prefix="/bookings", tags=["bookings"])
-
-# Lấy các biến môi trường hoặc sử dụng giá trị mặc định
-# Trong môi trường sản xuất, bạn nên cấu hình các biến này
-WP_API_URL = os.getenv("WP_API_URL", "https://staytour.vtlink.link/wp-json/mphb/v1")
-WP_CONSUMER_KEY = os.getenv("WP_CONSUMER_KEY", "ck_972eead1eeee1b8340185d63929a96058fa42757")
-WP_CONSUMER_SECRET = os.getenv("WP_CONSUMER_SECRET", "cs_eb8b8e24af51ddd8e7fa793f9bf7279cff33c8bb")
-
-# Ánh xạ tên phòng tới ID để dễ sử dụng
-ROOM_TYPES_MAP = {
-    "Economy Classic Room": 1943,
-    "Triple Classic Room": 1189,
-    "Business Class Room": 1190,
-    "Royal Class Room": 1191,
-    "Superior Ocean Room": 1192,
-    "Classic Room": 1015,
-    "Double Room": 1006,
-    "Standard Room": 986,
-    "Deluxe room": 3632
-}
 
 # --- SCHEMAS (Định nghĩa cấu trúc dữ liệu cho request và response) ---
 class ReservedAccommodation(BaseModel):
@@ -55,8 +36,7 @@ class BookingCreate(BaseModel):
 def create_booking(booking: BookingCreate):
     """
     Endpoint này nhận dữ liệu đặt phòng từ frontend và chuyển tiếp đến API WordPress.
-    - Đảo ngược `first_name` và `last_name` của khách hàng.
-    - Ghép thành `guest_name` cho mỗi phòng được đặt.
+
     """
     try:
         url = f"{WP_API_URL}/bookings"
@@ -150,28 +130,7 @@ def get_accommodation_types():
         return filtered_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/accommodations/", summary="Lấy danh sách các phòng nghỉ riêng lẻ")
-def get_accommodations():
-    """
-    Endpoint mới để lấy danh sách tất cả các phòng nghỉ riêng lẻ từ API WordPress.
-    """
-    try:
-        url = f"{WP_API_URL}/accommodations"
-        
-        response = requests.get(
-            url,
-            auth=(WP_CONSUMER_KEY, WP_CONSUMER_SECRET),
-            timeout=20
-        )
-
-        if response.status_code != 200:
-            print(f"Lỗi WP API {response.status_code}: {response.text}")
-            raise HTTPException(status_code=response.status_code, detail=response.json())
-
-        return response.json()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    
 
 @router.get("/availability/", summary="Kiểm tra phòng trống")
 def get_room_availability(
@@ -216,11 +175,4 @@ def get_room_availability(
         return response.json()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# Thêm router vào ứng dụng chính
-app.include_router(router)
-
-# Endpoint gốc để kiểm tra tình trạng hoạt động của backend
-@app.get("/")
-def read_root():
-    return {"message": "Backend trung gian đang hoạt động!"}
+    
